@@ -38,8 +38,8 @@ The app lives in the system tray and runs quietly in the background.
   animation.
 - **Dynamic theming** — the island tints itself with the dominant color of the
   current artwork; the glow propagates to the settings and AI windows.
-- **AI assistant** — chat panel with multiple models and **internet tools**: web
-  search, page fetching, and reading this project's own source from GitHub.
+- **AI assistant** — a chat panel with multiple models, built right into the
+  island.
 - **Localization** — full Russian / English UI with a flag‑based switcher; no
   hardcoded strings.
 - **Tasteful customization** — size, position, corner radius, opacity, colors,
@@ -49,33 +49,64 @@ The app lives in the system tray and runs quietly in the background.
 
 | Layer | Stack | Responsibility |
 |------|-------|----------------|
-| **Shell** | Tauri 2, Rust | Windows, tray, geometry, SMTC, audio, autostart |
+| **Shell** | Tauri 2, Rust | Windows, tray, geometry, SMTC, audio capture, autostart |
 | **UI** | Vanilla TypeScript, Vite | Island, settings, and assistant webviews |
-| **AI relay** | Python (stdlib only) | Multi‑provider chat + agentic tool loop |
 
 Three transparent, undecorated windows (`island`, `settings`, `assistant`) are
 sized to their exact visible content so transparent pixels never block the
 desktop. Windows‑specific integration uses the `windows` crate: SMTC for media,
-the Audio Session API for per‑app volume, UI Automation to read the active
+WASAPI loopback for the equalizer spectrum, UI Automation to read the active
 browser tab, and an `IShellLink` shortcut for startup.
 
+### What's in this repository
+
+These are the files that are actually committed and published to GitHub.
+
 ```
-asbar/
-├─ src/                  # webview front-ends
-│  ├─ island.ts          # the pill: media, equalizer, seek, theming
-│  ├─ settings.ts        # preferences + language picker
-│  ├─ assistant.ts       # AI chat panel
-│  └─ i18n.ts            # RU/EN dictionary + apply engine
-├─ src-tauri/src/
-│  ├─ lib.rs             # orchestrator: windows, tray, poller, commands
-│  ├─ media.rs           # SMTC read + transport control
-│  ├─ audio.rs           # per-app volume (Audio Session API)
-│  ├─ browser.rs         # active-tab URL via UI Automation (YouTube art)
-│  ├─ ai.rs              # thin client to the AI relay
-│  ├─ autostart.rs       # Startup-folder shortcut
-│  └─ config.rs          # persisted settings (C:/AsBar/config.json)
-└─ AI бэкенд/            # the relay (see below)
+AsBar/
+├─ index.html               # island window entry
+├─ settings.html            # settings window entry
+├─ assistant.html           # AI assistant window entry
+├─ package.json             # npm scripts + deps
+├─ vite.config.ts           # multi-entry Vite config
+├─ tsconfig.json
+│
+├─ src/                     # webview front-ends (TypeScript)
+│  ├─ island.ts             # the pill: media, equalizer, seek, theming
+│  ├─ island.css
+│  ├─ settings.ts           # preferences + language picker
+│  ├─ settings.css
+│  ├─ assistant.ts          # AI chat panel
+│  ├─ assistant.css
+│  ├─ i18n.ts               # RU/EN dictionary + apply engine
+│  ├─ fonts.ts              # bundles the Involve typeface into the document
+│  ├─ vite-env.d.ts
+│  └─ assets/               # vite.svg, tauri.svg, typescript.svg
+│
+├─ src-tauri/               # Rust shell (Tauri 2)
+│  ├─ src/
+│  │  ├─ main.rs            # binary entry point
+│  │  ├─ lib.rs             # orchestrator: windows, tray, poller, commands
+│  │  ├─ media.rs           # SMTC read + transport control
+│  │  ├─ visualizer.rs      # WASAPI loopback FFT → equalizer levels
+│  │  ├─ browser.rs         # active-tab URL via UI Automation (YouTube art)
+│  │  ├─ ai.rs              # thin client to the AI relay
+│  │  ├─ autostart.rs       # Startup-folder shortcut (.lnk)
+│  │  └─ config.rs          # persisted settings (C:/AsBar/config.json)
+│  ├─ capabilities/default.json
+│  ├─ icons/                # app icons (.ico / .png / .icns)
+│  ├─ build.rs
+│  ├─ Cargo.toml · Cargo.lock
+│  └─ tauri.conf.json
+│
+├─ Assets/                  # UI icons (.png) + FONTS/ (Involve typeface)
+├─ .github/workflows/build.yml   # CI: Windows build via GitHub Actions
+├─ LICENSE
+└─ README.md
 ```
+
+> **Not published:** the server‑side relay, `prim/`, `node_modules/`, `dist/`, and
+> `src-tauri/target/` are all excluded by [`.gitignore`](.gitignore).
 
 ## Getting started
 
@@ -91,9 +122,6 @@ asbar/
 git clone https://github.com/sosulacka/AsBar.git
 cd AsBar
 ```
-
-> The `AI бэкенд/` relay is **not** part of the public repository — it is
-> server‑side only and holds the encrypted provider keys.
 
 ### Run in development
 
@@ -111,37 +139,14 @@ npm run tauri build
 The installer and standalone binary are emitted under
 `src-tauri/target/release/`.
 
-## AI backend
+## AI assistant
 
-The desktop app never holds a provider key. It talks only to a relay, which
-selects a key from an **encrypted, in‑memory pool** and calls the upstream
-provider. Keys live as encrypted blobs inside the server source — never on disk.
+The AI assistant is powered by a relay that simply forwards your requests to the
+AI models and returns their answers. That's all it does.
 
-| Model | Provider | Endpoint |
-|-------|----------|----------|
-| `qwen/qwen3-32b` | Groq | OpenAI‑compatible |
-| `gemini-2.5-flash` / `…-lite` | Puter | OpenAI‑compatible |
-
-The relay implements an **agentic tool loop**: when a model requests a tool, the
-relay executes it and feeds the result back until a final answer is produced.
-
-- `web_search` — keyless web search
-- `fetch_url` — open a page and read its HTML / CSS / text
-- `github_read` — read this project's source from GitHub
-
-It is **pure Python standard library** — no `pip install` required.
-
-```bash
-# 1. Encrypt your provider keys locally (plaintext never touches disk)
-python "AI бэкенд/keygen.py" gsk_yourGroqKey...
-
-# 2. Paste the printed blob into AI бэкенд/server.py (GROQ_KEYS_BLOB / PUTER_KEYS_BLOB)
-
-# 3. Run the relay
-python "AI бэкенд/server.py"        # listens on 0.0.0.0:25573
-```
-
-Health check: `GET /health` → `{"status":"ok","keys":{"groq":N,"puter":M}}`.
+- **No data is collected.** Your messages are not stored or logged — they are only
+  passed through to generate a response.
+- The relay runs server‑side and is not part of this repository.
 
 ## Configuration
 
@@ -206,8 +211,7 @@ AsBar рисует компактную «стеклянную» пилюлю с
   зацикленная анимация.
 - **Динамическая тема** — остров красится в доминирующий цвет обложки; свечение
   расходится на окна настроек и AI.
-- **AI‑ассистент** — чат с несколькими моделями и **интернет‑инструментами**:
-  веб‑поиск, чтение страниц и чтение исходников проекта с GitHub.
+- **AI‑ассистент** — чат с несколькими моделями, встроенный прямо в остров.
 - **Локализация** — полный интерфейс на русском и английском с переключателем по
   флагам; без захардкоженных строк.
 - **Гибкая настройка** — размер, положение, скругление, прозрачность, цвета,
@@ -217,9 +221,64 @@ AsBar рисует компактную «стеклянную» пилюлю с
 
 | Слой | Стек | Назначение |
 |------|------|-----------|
-| **Оболочка** | Tauri 2, Rust | Окна, трей, геометрия, SMTC, звук, автозапуск |
+| **Оболочка** | Tauri 2, Rust | Окна, трей, геометрия, SMTC, захват звука, автозапуск |
 | **UI** | Vanilla TypeScript, Vite | Окна острова, настроек и ассистента |
-| **AI‑релей** | Python (только stdlib) | Мультипровайдерный чат + цикл инструментов |
+
+Три прозрачных окна без рамок (`island`, `settings`, `assistant`) подгоняются под
+точный размер видимого контента, чтобы прозрачные пиксели не перехватывали клики
+по рабочему столу. Интеграция с Windows идёт через крейт `windows`: SMTC для
+медиа, WASAPI loopback для спектра эквалайзера, UI Automation для чтения активной
+вкладки браузера и ярлык `IShellLink` для автозапуска.
+
+### Что лежит в этом репозитории
+
+Это файлы, которые реально закоммичены и публикуются на GitHub.
+
+```
+AsBar/
+├─ index.html               # окно острова
+├─ settings.html            # окно настроек
+├─ assistant.html           # окно AI‑ассистента
+├─ package.json             # npm‑скрипты и зависимости
+├─ vite.config.ts           # multi-entry конфиг Vite
+├─ tsconfig.json
+│
+├─ src/                     # фронтенд вебвью (TypeScript)
+│  ├─ island.ts             # пилюля: медиа, эквалайзер, перемотка, тема
+│  ├─ island.css
+│  ├─ settings.ts           # настройки + переключатель языка
+│  ├─ settings.css
+│  ├─ assistant.ts          # панель AI‑чата
+│  ├─ assistant.css
+│  ├─ i18n.ts               # словарь RU/EN + движок применения
+│  ├─ fonts.ts              # подключает шрифт Involve в документ
+│  ├─ vite-env.d.ts
+│  └─ assets/               # vite.svg, tauri.svg, typescript.svg
+│
+├─ src-tauri/               # Rust‑оболочка (Tauri 2)
+│  ├─ src/
+│  │  ├─ main.rs            # точка входа бинаря
+│  │  ├─ lib.rs             # оркестратор: окна, трей, поллер, команды
+│  │  ├─ media.rs           # чтение SMTC + управление воспроизведением
+│  │  ├─ visualizer.rs      # WASAPI loopback FFT → уровни эквалайзера
+│  │  ├─ browser.rs         # URL активной вкладки через UI Automation (арт YouTube)
+│  │  ├─ ai.rs              # тонкий клиент к AI‑релею
+│  │  ├─ autostart.rs       # ярлык в папке «Автозагрузка» (.lnk)
+│  │  └─ config.rs          # сохранённые настройки (C:/AsBar/config.json)
+│  ├─ capabilities/default.json
+│  ├─ icons/                # иконки приложения (.ico / .png / .icns)
+│  ├─ build.rs
+│  ├─ Cargo.toml · Cargo.lock
+│  └─ tauri.conf.json
+│
+├─ Assets/                  # иконки интерфейса (.png) + FONTS/ (шрифт Involve)
+├─ .github/workflows/build.yml   # CI: сборка под Windows через GitHub Actions
+├─ LICENSE
+└─ README.md
+```
+
+> **Не публикуется:** серверный релей, `prim/`, `node_modules/`, `dist/` и
+> `src-tauri/target/` — всё исключено через [`.gitignore`](.gitignore).
 
 ## Установка
 
@@ -236,9 +295,6 @@ git clone https://github.com/sosulacka/AsBar.git
 cd AsBar
 ```
 
-> Релей `AI бэкенд/` **не входит** в публичный репозиторий — он только на сервере
-> и хранит зашифрованные ключи провайдеров.
-
 ### Запуск
 
 ```bash
@@ -249,28 +305,38 @@ npm run tauri build    # релизная сборка (.msi / .exe)
 
 Готовый бинарь и установщик лежат в `src-tauri/target/release/`.
 
-## AI‑бэкенд
+## AI‑ассистент
 
-Приложение никогда не держит ключи провайдеров. Оно общается только с релеем,
-который выбирает ключ из **зашифрованного пула в памяти** и вызывает провайдера.
-Ключи лежат зашифрованными блобами прямо в коде сервера — никогда на диске.
+AI‑ассистент работает через релей, который просто передаёт ваши запросы к
+нейросетям и возвращает их ответы. Этим всё и ограничивается.
 
-| Модель | Провайдер |
-|--------|-----------|
-| `qwen/qwen3-32b` | Groq |
-| `gemini-2.5-flash` / `…-lite` | Puter |
+- **Данные не собираются.** Ваши сообщения не хранятся и не логируются — они лишь
+  передаются дальше, чтобы получить ответ.
+- Релей работает на сервере и не входит в этот репозиторий.
 
-Релей реализует **агентный цикл инструментов**: модель запрашивает инструмент →
-релей выполняет его и возвращает результат, пока не будет готов финальный ответ
-(`web_search` — веб‑поиск, `fetch_url` — чтение страницы, `github_read` — чтение
-исходников проекта). Всё на **чистой стандартной библиотеке Python** — без
-`pip install`.
+## Конфигурация
 
-```bash
-python "AI бэкенд/keygen.py" gsk_yourGroqKey...   # зашифровать ключи локально
-# вставить блоб в server.py (GROQ_KEYS_BLOB / PUTER_KEYS_BLOB)
-python "AI бэкенд/server.py"                        # слушает 0.0.0.0:25573
-```
+Настройки сохраняются в `C:/AsBar/config.json` и применяются на лету. Обложки
+кэшируются в `C:/AsBar/Assets/Icons/`.
+
+| Настройка | Описание |
+|-----------|----------|
+| Позиция · смещение · отступ | Где закрепляется остров |
+| Ширина · высота · скругление | Геометрия пилюли |
+| Прозрачность | Полупрозрачность фона |
+| Цвета | Фон, текст, акцент |
+| Цвет из обложки | Брать акцент из обложки трека |
+| Акцент Windows | Следовать системному акцентному цвету |
+| Поверх всех окон | Держать панели над другими окнами |
+| Автозапуск | Через ярлык в папке «Автозагрузка» |
+| Язык | Русский / английский |
+
+## Непрерывная интеграция
+
+Каждый push и pull request запускает сборку под Windows через GitHub Actions
+([`.github/workflows/build.yml`](.github/workflows/build.yml)): ставится
+тулчейн, выполняется `npm run tauri build`, и готовый установщик выкладывается
+как артефакт. Запуск вручную — со вкладки **Actions** (`workflow_dispatch`).
 
 ## Лицензия
 
