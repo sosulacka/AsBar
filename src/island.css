@@ -1,0 +1,431 @@
+:root {
+  --w: 460px;
+  --h: 88px;
+  --pad: 22px;
+  --radius: 28px;
+  --bg: #050507;
+  --text: #ffffff;
+  --accent: #e0e0ec;
+  --opacity: 1;
+  --muted: rgba(255, 255, 255, 0.5);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  background: transparent !important;
+  overflow: hidden;
+  font-family: "Involve", -apple-system, "Segoe UI", system-ui, sans-serif;
+  cursor: default;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Dock the pill to the very top-center — a notch growing downward. */
+.stage {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+/* ---- Pill --------------------------------------------------------------- */
+.island {
+  position: relative;
+  width: var(--w);
+  height: var(--h);
+  flex-shrink: 0;
+  flex-grow: 0;
+  color: var(--text);
+  /* visible so the volume popup and tooltip can extend past the pill */
+  overflow: visible;
+  transform-origin: top center;
+  transition:
+    width 0.5s cubic-bezier(0.2, 0.85, 0.25, 1),
+    height 0.5s cubic-bezier(0.2, 0.85, 0.25, 1);
+  animation: drop-in 0.5s cubic-bezier(0.2, 0.85, 0.25, 1);
+}
+@keyframes drop-in {
+  from { opacity: 0; transform: translateY(-12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Clipped, rounded background layer (holds the glass + glow). */
+.island-bg {
+  position: absolute;
+  inset: 0;
+  border-radius: 0 0 var(--radius) var(--radius);
+  background: var(--bg);
+  /* Opacity applies to the whole background stack (glass + glow + scrim) so it
+     stays visible even over album art; the content layer above stays opaque. */
+  opacity: var(--opacity);
+  box-shadow:
+    inset 0 -1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+    inset 0 -18px 30px -20px rgba(0, 0, 0, 0.9);
+  backdrop-filter: blur(30px) saturate(150%);
+  -webkit-backdrop-filter: blur(30px) saturate(150%);
+  overflow: hidden;
+  z-index: 0;
+  transition: border-radius 0.45s ease, opacity 0.3s ease;
+}
+
+/* Collapsed pill when idle — a slim tab hugging the top edge. */
+.island.idle {
+  width: 230px;
+  height: 34px;
+}
+
+/* ---- Album-art glow ----------------------------------------------------- */
+.glow {
+  position: absolute;
+  inset: -50%;
+  z-index: 0;
+  opacity: 0;
+  transition: opacity 0.7s ease;
+}
+.glow img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: blur(40px) saturate(2.6) brightness(1.15);
+  transform: scale(1.25);
+  will-change: transform;
+}
+.island.has-art .glow { opacity: 0.62; }
+/* Slow, gentle drift so the colour quietly breathes instead of sitting still. */
+.island.has-art.playing .glow img {
+  animation: glow-drift 13s ease-in-out infinite alternate;
+}
+@keyframes glow-drift {
+  0%   { transform: scale(1.25) translate(-3%, -2%); }
+  50%  { transform: scale(1.34) translate(4%, 2%); }
+  100% { transform: scale(1.25) translate(2%, -3%); }
+}
+.scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(180deg, rgba(5, 5, 7, 0.46), rgba(5, 5, 7, 0.74));
+}
+
+/* ---- Custom tooltip ----------------------------------------------------- */
+.tip {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(-4px);
+  padding: 5px 11px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg) 94%, transparent);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  box-shadow: 0 8px 22px -6px rgba(0, 0, 0, 0.7),
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 30;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.tip::before {
+  content: "";
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-bottom-color: color-mix(in srgb, var(--bg) 94%, transparent);
+}
+.island.show-tip .tip {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ---- Content ------------------------------------------------------------ */
+.content {
+  position: relative;
+  z-index: 2;
+  height: 100%;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 15px;
+  /* leave room at the bottom for the seek bar */
+  padding: 11px 18px 16px;
+}
+.island.idle .content {
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 9px;
+  padding: 0 14px;
+  align-items: center;
+}
+
+/* ---- Artwork ------------------------------------------------------------ */
+.art {
+  position: relative;
+  width: 54px;
+  height: 54px;
+  border-radius: 13px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow:
+    0 6px 16px rgba(0, 0, 0, 0.5),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.09);
+  flex-shrink: 0;
+  transition: width 0.4s ease, height 0.4s ease, border-radius 0.4s ease;
+}
+.island.idle .art {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+}
+.art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: none;
+}
+.art-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+}
+.island.has-art .art img { display: block; }
+.island.has-art .art-fallback { display: none; }
+
+/* Standalone equalizer in the free space of the info row (wider bars). */
+.eq {
+  display: none;
+  gap: 3.5px;
+  align-items: flex-end;
+  height: 16px;
+  margin-left: auto;
+  padding-right: 2px;
+}
+.island.playing:not(.idle) .eq { display: flex; }
+.eq span {
+  width: 4px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--accent);
+  box-shadow: 0 0 9px color-mix(in srgb, var(--accent) 70%, transparent);
+  animation: viz 0.9s infinite ease-in-out alternate;
+}
+.eq span:nth-child(2) { animation-delay: 0.18s; }
+.eq span:nth-child(3) { animation-delay: 0.36s; }
+.eq span:nth-child(4) { animation-delay: 0.10s; }
+.eq span:nth-child(5) { animation-delay: 0.27s; }
+@keyframes viz { from { height: 4px; opacity: 0.5; } to { height: 16px; opacity: 1; } }
+/* Live spectrum: drop the canned loop and let JS drive each bar's height. */
+.eq.live span {
+  animation: none;
+  transition: height 0.07s linear, opacity 0.07s linear;
+}
+
+/* ---- Info --------------------------------------------------------------- */
+.info {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  align-self: center;
+}
+.info-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 1px;
+}
+.island.idle .info-top { display: none; }
+.source-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px 2px 6px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 0.5px solid rgba(255, 255, 255, 0.12);
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.source-ic {
+  width: 11px;
+  height: 11px;
+  display: inline-flex;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.source-ic svg { width: 100%; height: 100%; }
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 10px var(--accent);
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.island.playing:not(.idle) .status-dot {
+  opacity: 1;
+  animation: pulse 2.4s ease infinite;
+}
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+.title-wrap {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 6px, #000 calc(100% - 16px), transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 6px, #000 calc(100% - 16px), transparent 100%);
+}
+.title {
+  display: inline-flex;
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.1px;
+  line-height: 1.25;
+  white-space: nowrap;
+  padding-left: 1px;
+  will-change: transform;
+}
+.title .seg {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.title .seg + .seg {
+  margin-left: 44px; /* must match `gap` in setTitle() */
+}
+/* Seamless loop: shift by exactly one (segment + gap); the duplicate copy
+   makes the wrap invisible, so it never pauses at the end. */
+.title.marquee {
+  animation: marquee var(--marquee-dur, 10s) linear infinite;
+}
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(calc(var(--seg-w, 0px) * -1)); }
+}
+.subtitle {
+  font-weight: 400;
+  font-size: 12px;
+  letter-spacing: 0.15px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+
+/* Idle: single centered line */
+.island.idle .title { font-size: 12px; font-weight: 600; color: var(--muted); }
+.island.idle .subtitle { display: none; }
+.island.idle .art-fallback svg { width: 12px; height: 12px; opacity: 0.5; }
+
+/* ---- Controls ----------------------------------------------------------- */
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  align-self: center;
+  flex-shrink: 0;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.island.idle .controls { display: none; }
+.ctl {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  opacity: 0.82;
+  transition: background 0.18s ease, transform 0.12s ease, opacity 0.18s ease;
+}
+.ctl:hover { background: rgba(255, 255, 255, 0.13); opacity: 1; }
+.ctl:active { transform: scale(0.88); }
+.ctl.primary {
+  width: 42px;
+  height: 42px;
+  margin: 0 1px;
+  color: #08080a;
+  background: var(--accent);
+  opacity: 1;
+  box-shadow: 0 3px 16px -3px color-mix(in srgb, var(--accent) 78%, transparent);
+}
+.ctl.primary:hover { background: var(--accent); filter: brightness(1.08); }
+.ic-pause { display: none; }
+.island.playing .ic-play { display: none; }
+.island.playing .ic-pause { display: block; }
+
+/* ---- Seek --------------------------------------------------------------- */
+.progress {
+  position: absolute;
+  z-index: 3;
+  left: 20px;
+  right: 20px;
+  bottom: 9px;
+  height: 12px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  opacity: 1;
+  transition: opacity 0.3s ease;
+}
+.island.idle .progress { opacity: 0; pointer-events: none; }
+.progress-track {
+  position: absolute;
+  left: 0; right: 0;
+  height: 3px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.16);
+  transition: height 0.18s ease;
+}
+.progress-fill {
+  position: absolute;
+  left: 0;
+  height: 3px;
+  width: 0%;
+  border-radius: 3px;
+  background: var(--accent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 60%, transparent);
+  transition: width 0.4s linear, height 0.18s ease;
+}
+.progress-knob {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+  left: 0%;
+  transform: translateX(-50%) scale(0);
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.5);
+  transition: transform 0.16s ease;
+}
+.progress:hover .progress-track,
+.progress:hover .progress-fill { height: 4px; }
+.progress:hover .progress-knob { transform: translateX(-50%) scale(1); }

@@ -1,0 +1,420 @@
+:root {
+  --bg: rgba(12, 12, 16, 0.84);
+  --surface: rgba(255, 255, 255, 0.05);
+  --surface-2: rgba(255, 255, 255, 0.08);
+  --surface-3: rgba(255, 255, 255, 0.11);
+  --line: rgba(255, 255, 255, 0.08);
+  --line-strong: rgba(255, 255, 255, 0.14);
+  --text: #f1f1f4;
+  --muted: rgba(241, 241, 244, 0.48);
+  --accent: #e0e0ec;
+  --glow: #e0e0ec;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+  font-family: "Involve", -apple-system, "Segoe UI", system-ui, sans-serif;
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Anchored under the island. The panel starts as a slim top-center strip
+   (matching the collapsed island) and unfolds outward + downward. */
+.window {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  /* "Flashlight" from the island side (top-center) in the island's color,
+     fading diffusely into the depth of the window. */
+  /* "Flashlight" from the island's actual direction (--gx/--gy set per-window
+     by the backend based on where the island sits relative to this window). */
+  background:
+    radial-gradient(62% 72% at 50% 0%,
+      color-mix(in srgb, var(--glow) 60%, transparent),
+      color-mix(in srgb, var(--glow) 24%, transparent) 32%,
+      transparent 68%),
+    var(--bg);
+  background-blend-mode: screen, normal;
+  backdrop-filter: blur(40px) saturate(160%);
+  -webkit-backdrop-filter: blur(40px) saturate(160%);
+  border: 1px solid var(--line-strong);
+  border-radius: 4px 4px 20px 20px;
+  transition: background 0.5s ease;
+  overflow: hidden;
+  transform-origin: top center;
+  box-shadow: 0 36px 80px -26px rgba(0, 0, 0, 0.82);
+  animation: unfold 0.52s cubic-bezier(0.2, 0.85, 0.25, 1) both;
+}
+
+/* Reveal from a ~220px-wide, 34px-tall top-center strip out to the full panel. */
+@keyframes unfold {
+  0% {
+    clip-path: inset(0 calc(50% - 110px) calc(100% - 34px) calc(50% - 110px) round 0 0 16px 16px);
+    opacity: 0.5;
+    transform: scaleX(0.5) translateY(-6px);
+  }
+  45% {
+    opacity: 1;
+    transform: scaleX(1) translateY(0);
+  }
+  100% {
+    clip-path: inset(0 0 0 0 round 4px 4px 20px 20px);
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Content fades in slightly after the shell has unfolded. */
+.titlebar,
+.body,
+.footer {
+  animation: fade-content 0.4s ease 0.22s both;
+}
+@keyframes fade-content {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* little notch at the top center to tie it to the island */
+.notch {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 90px;
+  height: 4px;
+  border-radius: 0 0 6px 6px;
+  background: rgba(255, 255, 255, 0.16);
+  z-index: 5;
+}
+
+/* ---- Titlebar ----------------------------------------------------------- */
+.titlebar {
+  height: 52px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px 0 18px;
+  border-bottom: 1px solid var(--line);
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.brand .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 12px var(--accent);
+  animation: pulse 2.6s ease infinite;
+}
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+.logo {
+  font-weight: 700;
+  font-size: 13.5px;
+  letter-spacing: 0.3px;
+}
+.page {
+  color: var(--muted);
+  font-weight: 400;
+  font-size: 12px;
+}
+.close {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.close:hover {
+  background: #e5484d;
+  color: #fff;
+}
+
+/* ---- Body --------------------------------------------------------------- */
+.body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 16px 12px;
+}
+.cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 22px;
+}
+.group h2 {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.4px;
+  color: var(--muted);
+  margin: 8px 0 14px;
+}
+
+/* ---- Fields ------------------------------------------------------------- */
+.field { margin-bottom: 14px; }
+.field label { font-size: 12.5px; color: var(--text); }
+.lbl {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.val {
+  color: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Custom dropdown (native <select> options render as unreadable white on the
+   dark glass, so we roll our own themed menu). */
+.dropdown { position: relative; }
+.dd-btn {
+  width: 100%;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  outline: none;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.dd-btn:hover { background: var(--surface-2); border-color: var(--line-strong); }
+.dd-btn svg { opacity: 0.55; transition: transform 0.2s ease; }
+.dropdown.open .dd-btn { border-color: var(--accent); }
+.dropdown.open .dd-btn svg { transform: rotate(180deg); }
+
+.dd-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  padding: 5px;
+  border-radius: 11px;
+  background: rgba(22, 22, 28, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 16px 40px -12px rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(24px);
+  opacity: 0;
+  transform: translateY(-6px) scale(0.98);
+  transform-origin: top center;
+  pointer-events: none;
+  transition: opacity 0.16s ease, transform 0.16s ease;
+  z-index: 50;
+}
+.dropdown.open .dd-menu { opacity: 1; transform: none; pointer-events: auto; }
+.dd-opt {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 9px;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.13s ease;
+}
+.dd-opt:hover { background: rgba(255, 255, 255, 0.08); }
+.dd-opt .tick { opacity: 0; color: var(--accent); }
+.dd-opt.active .tick { opacity: 1; }
+.dd-opt.active { color: var(--accent); }
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: 4px;
+  background: var(--surface-3);
+  outline: none;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 3px solid #0c0c10;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 60%, transparent);
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+input[type="range"]::-webkit-slider-thumb:active { transform: scale(1.2); }
+input[type="range"] {
+  background: linear-gradient(to right,
+    color-mix(in srgb, var(--accent) 70%, transparent) var(--fill, 0%),
+    var(--surface-3) var(--fill, 0%));
+}
+
+.swatches {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.swatch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.swatch span { font-size: 10.5px; color: var(--muted); }
+input[type="color"] {
+  width: 100%;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+input[type="color"]:hover { border-color: var(--line-strong); }
+input[type="color"]::-webkit-color-swatch-wrapper { padding: 4px; }
+input[type="color"]::-webkit-color-swatch { border: none; border-radius: 6px; }
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.t-text { display: flex; flex-direction: column; gap: 1px; }
+.t-text small { color: var(--muted); font-size: 10px; }
+
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 40px;
+  height: 23px;
+  flex-shrink: 0;
+}
+.switch input { display: none; }
+.slider {
+  position: absolute;
+  inset: 0;
+  background: var(--surface-3);
+  border: 1px solid var(--line);
+  border-radius: 23px;
+  transition: background 0.22s ease, border-color 0.22s ease;
+}
+.slider::before {
+  content: "";
+  position: absolute;
+  width: 17px;
+  height: 17px;
+  left: 3px;
+  top: 2px;
+  border-radius: 50%;
+  background: var(--muted);
+  transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.22s ease;
+}
+.switch input:checked + .slider {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.switch input:checked + .slider::before {
+  transform: translateX(16px);
+  background: #0c0c10;
+}
+input:disabled + .slider { opacity: 0.4; cursor: not-allowed; }
+
+/* ---- Footer ------------------------------------------------------------- */
+.footer {
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 12px 16px 14px;
+  border-top: 1px solid var(--line);
+}
+.toggle-pill {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--surface);
+}
+.toggle-pill label { font-size: 12px; }
+
+/* ---- Language picker ---------------------------------------------------- */
+.lang-group { margin-top: 6px; }
+.langs {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+.lang {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.lang:hover { background: var(--surface-2); border-color: var(--line-strong); }
+.lang.active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.lang .flag {
+  width: 30px;
+  height: 20px;
+  border-radius: 4px;
+  overflow: hidden;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
+  display: block;
+}
+.lang .flag svg { width: 100%; height: 100%; display: block; }
+
+.body::-webkit-scrollbar { width: 8px; }
+.body::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: 8px; }
+.body::-webkit-scrollbar-track { background: transparent; }

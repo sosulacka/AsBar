@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AsBar — Settings</title>
+    <script type="module" src="/src/settings.ts"></script>
+  </head>
+  <body>
+    <div class="window">
+      <span class="notch"></span>
+
+      <header class="titlebar" data-tauri-drag-region>
+        <div class="brand" data-tauri-drag-region>
+          <span class="dot"></span>
+          <span class="logo">AsBar</span>
+          <span class="page" data-i18n="settings.page">Настройки</span>
+        </div>
+        <button id="close" class="close" data-i18n-aria="settings.close" aria-label="Закрыть">
+          <svg viewBox="0 0 24 24" width="13" height="13"><path fill="currentColor" d="M18.3 5.71 12 12l6.3 6.29-1.41 1.42L10.59 13.4 4.3 19.71 2.88 18.3 9.17 12 2.88 5.71 4.3 4.29l6.29 6.3 6.3-6.3z"/></svg>
+        </button>
+      </header>
+
+      <main class="body">
+        <div class="cols">
+          <section class="group">
+            <h2 data-i18n="settings.geometry">Геометрия</h2>
+
+            <div class="field">
+              <label data-i18n="settings.position">Положение</label>
+              <div class="dropdown" id="anchor-dd">
+                <button class="dd-btn" id="anchor-btn" type="button">
+                  <span id="anchor-label" data-i18n="settings.center">По центру</span>
+                  <svg viewBox="0 0 24 24" width="12" height="12"><path fill="currentColor" d="M7 10l5 5 5-5z"/></svg>
+                </button>
+                <div class="dd-menu" id="anchor-menu">
+                  <button class="dd-opt" type="button" data-value="left">
+                    <span data-i18n="settings.left">Слева</span>
+                    <svg class="tick" viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg>
+                  </button>
+                  <button class="dd-opt" type="button" data-value="center">
+                    <span data-i18n="settings.center">По центру</span>
+                    <svg class="tick" viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg>
+                  </button>
+                  <button class="dd-opt" type="button" data-value="right">
+                    <span data-i18n="settings.right">Справа</span>
+                    <svg class="tick" viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="field">
+              <div class="lbl"><label for="width" data-i18n="settings.width">Ширина</label><span id="width-val" class="val"></span></div>
+              <input type="range" id="width" min="200" max="720" step="2" />
+            </div>
+            <div class="field">
+              <div class="lbl"><label for="height" data-i18n="settings.height">Высота</label><span id="height-val" class="val"></span></div>
+              <input type="range" id="height" min="48" max="120" step="1" />
+            </div>
+            <div class="field">
+              <div class="lbl"><label for="margin_top" data-i18n="settings.marginTop">Отступ сверху</label><span id="margin_top-val" class="val"></span></div>
+              <input type="range" id="margin_top" min="0" max="140" step="1" />
+            </div>
+            <div class="field">
+              <div class="lbl"><label for="offset_x" data-i18n="settings.offsetX">Смещение по X</label><span id="offset_x-val" class="val"></span></div>
+              <input type="range" id="offset_x" min="-700" max="700" step="2" />
+            </div>
+          </section>
+
+          <section class="group">
+            <h2 data-i18n="settings.appearance">Внешний вид</h2>
+
+            <div class="swatches">
+              <div class="swatch">
+                <input type="color" id="bg_color" />
+                <span data-i18n="settings.bg">Фон</span>
+              </div>
+              <div class="swatch">
+                <input type="color" id="text_color" />
+                <span data-i18n="settings.text">Текст</span>
+              </div>
+              <div class="swatch">
+                <input type="color" id="accent_color" />
+                <span data-i18n="settings.accent">Акцент</span>
+              </div>
+            </div>
+
+            <div class="field toggle-row">
+              <div class="t-text"><label for="dynamic_accent" data-i18n="settings.dynamicAccent">Цвет с обложки</label><small data-i18n="settings.dynamicAccentSub">акцент берётся из арта трека</small></div>
+              <label class="switch"><input type="checkbox" id="dynamic_accent" /><span class="slider"></span></label>
+            </div>
+            <div class="field toggle-row">
+              <div class="t-text"><label for="follow_system_accent" data-i18n="settings.systemAccent">Акцент Windows</label><small data-i18n="settings.systemAccentSub">использовать системный цвет</small></div>
+              <label class="switch"><input type="checkbox" id="follow_system_accent" /><span class="slider"></span></label>
+            </div>
+
+            <div class="field">
+              <div class="lbl"><label for="opacity" data-i18n="settings.opacity">Прозрачность</label><span id="opacity-val" class="val"></span></div>
+              <input type="range" id="opacity" min="0.4" max="1" step="0.01" />
+            </div>
+            <div class="field">
+              <div class="lbl"><label for="corner_radius" data-i18n="settings.cornerRadius">Скругление</label><span id="corner_radius-val" class="val"></span></div>
+              <input type="range" id="corner_radius" min="0" max="60" step="1" />
+            </div>
+          </section>
+        </div>
+
+        <section class="group lang-group">
+          <h2 data-i18n="settings.language">Язык</h2>
+          <div class="langs">
+            <button class="lang" data-lang="ru" type="button">
+              <span class="flag">
+                <svg viewBox="0 0 36 24" aria-hidden="true">
+                  <rect width="36" height="8" y="0" fill="#ffffff"/>
+                  <rect width="36" height="8" y="8" fill="#0039A6"/>
+                  <rect width="36" height="8" y="16" fill="#D52B1E"/>
+                </svg>
+              </span>
+              <span>Русский</span>
+            </button>
+            <button class="lang" data-lang="en" type="button">
+              <span class="flag">
+                <svg viewBox="0 0 36 24" aria-hidden="true">
+                  <rect width="36" height="24" fill="#ffffff"/>
+                  <g fill="#B22234">
+                    <rect y="0" width="36" height="1.85"/>
+                    <rect y="3.69" width="36" height="1.85"/>
+                    <rect y="7.38" width="36" height="1.85"/>
+                    <rect y="11.08" width="36" height="1.85"/>
+                    <rect y="14.77" width="36" height="1.85"/>
+                    <rect y="18.46" width="36" height="1.85"/>
+                    <rect y="22.15" width="36" height="1.85"/>
+                  </g>
+                  <rect width="15.5" height="12.92" fill="#3C3B6E"/>
+                </svg>
+              </span>
+              <span>English</span>
+            </button>
+          </div>
+        </section>
+      </main>
+
+      <footer class="footer">
+        <div class="toggle-pill">
+          <div class="t-text"><label for="always_on_top" data-i18n="settings.alwaysOnTop">Поверх приложений</label></div>
+          <label class="switch"><input type="checkbox" id="always_on_top" /><span class="slider"></span></label>
+        </div>
+        <div class="toggle-pill">
+          <div class="t-text"><label for="autostart" data-i18n="settings.autostart">Запуск с Windows</label></div>
+          <label class="switch"><input type="checkbox" id="autostart" /><span class="slider"></span></label>
+        </div>
+      </footer>
+    </div>
+  </body>
+</html>

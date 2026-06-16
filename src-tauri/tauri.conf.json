@@ -1,0 +1,94 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "AsBar",
+  "version": "0.1.0",
+  "identifier": "com.asbar.su",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://127.0.0.1:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "label": "island",
+        "url": "index.html",
+        "title": "AsBar",
+        "width": 360,
+        "height": 48,
+        "minWidth": 120,
+        "minHeight": 36,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "shadow": false,
+        "center": false,
+        "focus": false,
+        "visibleOnAllWorkspaces": true,
+        "acceptFirstMouse": true
+      },
+      {
+        "label": "settings",
+        "url": "settings.html",
+        "title": "AsBar — Settings",
+        "width": 600,
+        "height": 474,
+        "minWidth": 600,
+        "minHeight": 474,
+        "maxWidth": 600,
+        "maxHeight": 474,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "shadow": false,
+        "visible": false
+      },
+      {
+        "label": "assistant",
+        "url": "assistant.html",
+        "title": "AsBar — AI",
+        "width": 640,
+        "height": 520,
+        "minWidth": 640,
+        "minHeight": 520,
+        "maxWidth": 640,
+        "maxHeight": 520,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": false,
+        "skipTaskbar": true,
+        "shadow": false,
+        "visible": false
+      }
+    ],
+    "security": {
+      "csp": null,
+      "assetProtocol": {
+        "enable": true,
+        "scope": ["C:/AsBar/**", "$RESOURCE/**"]
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "resources": {
+      "../Assets/FONTS/Involve-Regular.ttf": "fonts/Involve-Regular.ttf",
+      "../Assets/FONTS/Involve-Bold.ttf": "fonts/Involve-Bold.ttf"
+    },
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}
