@@ -53,4 +53,8 @@ jobs:
             src-tauri\target\release\bundle\msi\*.msi
             src-tauri\target\release\bundle\nsis\*.exe
         env:
+<<<<<<< HEAD
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+=======
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+>>>>>>> 689babe5fc3ea35b84e63dde607a9a91ae94c415
