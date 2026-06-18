@@ -41,8 +41,8 @@ body {
       color-mix(in srgb, var(--glow) 38%, transparent),
       transparent 70%),
     var(--bg);
-  backdrop-filter: blur(34px) saturate(150%);
-  -webkit-backdrop-filter: blur(34px) saturate(150%);
+  /* No desktop backdrop-filter — see island.css. Solid panel background, so the
+     wallpaper blur was pure GPU cost. */
   border: 1px solid var(--line-strong);
   border-radius: 6px 6px 18px 18px;
   overflow: hidden;

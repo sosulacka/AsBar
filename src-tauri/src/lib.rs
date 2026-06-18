@@ -51,9 +51,44 @@ fn mark_visible(app: &AppHandle, label: &str, vis: bool) {
     }
 }
 
-/// Restore any "should be visible" window that Win+D minimized or hid. These
-/// are borderless tool windows with no minimize affordance, so any minimized /
-/// hidden state comes from "Show desktop" and must be undone.
+/// Restore a window that "Show desktop" (Win+D) minimized/hid. Tauri's
+/// `is_minimized`/`unminimize` are unreliable for borderless tool windows — they
+/// report stale state, so the second Win+D would leave the island stuck. Talk to
+/// Win32 directly: `IsIconic`/`IsWindowVisible` to detect, `ShowWindow` +
+/// `SetWindowPos(HWND_TOPMOST)` to restore without stealing focus.
+#[cfg(windows)]
+fn restore_if_hidden(w: &tauri::WebviewWindow, on_top: bool) {
+    use windows::Win32::Foundation::HWND;
+    use windows::Win32::UI::WindowsAndMessaging::{
+        IsIconic, IsWindowVisible, SetWindowPos, ShowWindow, HWND_TOPMOST, SWP_NOACTIVATE,
+        SWP_NOMOVE, SWP_NOSIZE, SW_SHOWNOACTIVATE,
+    };
+    let Ok(hwnd) = w.hwnd() else { return };
+    let hwnd = HWND(hwnd.0);
+    unsafe {
+        // Un-minimize without stealing focus if Win+D iconified it.
+        if IsIconic(hwnd).as_bool() || !IsWindowVisible(hwnd).as_bool() {
+            let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+        }
+        // Re-assert topmost UNCONDITIONALLY: "Show desktop" doesn't reliably
+        // iconify a borderless tool window — it just shoves it below the desktop
+        // layer, where IsIconic/IsWindowVisible still read "normal". Re-topmosting
+        // every tick lifts it back above that layer. Cheap and flicker-free.
+        if on_top {
+            let _ = SetWindowPos(
+                hwnd,
+                HWND_TOPMOST,
+                0,
+                0,
+                0,
+                0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+            );
+        }
+    }
+}
+
+/// Restore any "should be visible" window that Win+D minimized or hid.
 fn spawn_visibility_guard(app: AppHandle) {
     std::thread::spawn(move || loop {
         let labels: Vec<String> = {
@@ -61,17 +96,24 @@ fn spawn_visibility_guard(app: AppHandle) {
             let set = state.visible.lock();
             set.iter().cloned().collect()
         };
+        let on_top = app.state::<AppState>().config.lock().always_on_top;
         for label in labels {
             if let Some(w) = app.get_webview_window(&label) {
-                if w.is_minimized().unwrap_or(false) {
-                    let _ = w.unminimize();
-                }
-                if !w.is_visible().unwrap_or(true) {
-                    let _ = w.show();
+                #[cfg(windows)]
+                restore_if_hidden(&w, on_top);
+                #[cfg(not(windows))]
+                {
+                    let _ = on_top;
+                    if w.is_minimized().unwrap_or(false) {
+                        let _ = w.unminimize();
+                    }
+                    if !w.is_visible().unwrap_or(true) {
+                        let _ = w.show();
+                    }
                 }
             }
         }
-        std::thread::sleep(Duration::from_millis(300));
+        std::thread::sleep(Duration::from_millis(150));
     });
 }
 

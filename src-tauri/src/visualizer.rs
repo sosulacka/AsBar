@@ -68,17 +68,29 @@ fn fft(re: &mut [f32], im: &mut [f32]) {
     }
 }
 
+/// Precompute the Hann window once (it never changes for a fixed FFT size).
+fn hann_window(n: usize) -> Vec<f32> {
+    (0..n)
+        .map(|i| 0.5 - 0.5 * (2.0 * std::f32::consts::PI * i as f32 / (n as f32 - 1.0)).cos())
+        .collect()
+}
+
 /// Turn the latest mono samples into five perceptual band levels (0–1).
-fn analyze(ring: &[f32], sample_rate: f32) -> [f32; BANDS] {
+/// `re`/`im` are scratch buffers reused across calls so the per-frame analysis
+/// allocates nothing; `window` is the precomputed Hann window.
+fn analyze(
+    ring: &[f32],
+    sample_rate: f32,
+    window: &[f32],
+    re: &mut [f32],
+    im: &mut [f32],
+) -> [f32; BANDS] {
     let n = ring.len();
-    let mut re = vec![0f32; n];
-    let mut im = vec![0f32; n];
-    // Hann window to curb spectral leakage.
     for i in 0..n {
-        let w = 0.5 - 0.5 * (2.0 * std::f32::consts::PI * i as f32 / (n as f32 - 1.0)).cos();
-        re[i] = ring[i] * w;
+        re[i] = ring[i] * window[i];
+        im[i] = 0.0;
     }
-    fft(&mut re, &mut im);
+    fft(re, im);
 
     // Log-spaced band edges (Hz) + a gentle treble lift (highs read quieter).
     const EDGES: [f32; BANDS + 1] = [30.0, 120.0, 350.0, 1000.0, 3000.0, 12000.0];
@@ -109,6 +121,9 @@ fn analyze(ring: &[f32], sample_rate: f32) -> [f32; BANDS] {
 mod win {
     use super::{analyze, AppHandle, BANDS, FFT_SIZE};
     use tauri::Emitter;
+    /// Only the island shows the equalizer; targeting it avoids serializing the
+    /// 30/sec spectrum payload into the settings and assistant webviews too.
+    const VIZ_TARGET: &str = "island";
     use windows::Win32::Media::Audio::{
         eConsole, eRender, IAudioCaptureClient, IAudioClient, IMMDeviceEnumerator,
         MMDeviceEnumerator, AUDCLNT_BUFFERFLAGS_SILENT, AUDCLNT_SHAREMODE_SHARED,
@@ -143,6 +158,19 @@ mod win {
 
             let mut ring = vec![0f32; FFT_SIZE];
             let mut smooth = [0f32; BANDS];
+            // Allocate the FFT scratch + Hann window once, not per frame.
+            let window = super::hann_window(FFT_SIZE);
+            let mut re = vec![0f32; FFT_SIZE];
+            let mut im = vec![0f32; FFT_SIZE];
+            // When the mix is silent we stop spinning the FFT at 45fps: emit one
+            // final zero frame, then idle on a long sleep until audio returns.
+            let mut quiet_frames = 0u32;
+            let mut sent_zero = false;
+            // Last spectrum actually sent to the UI. We only push a new frame
+            // when a band moved enough to be visible — every emit forces the
+            // transparent island to recomposite over the (live) wallpaper, which
+            // is the whole playing-vs-paused CPU gap.
+            let mut last_sent = [0f32; BANDS];
 
             loop {
                 let mut got = 0usize;
@@ -183,7 +211,7 @@ mod win {
                 }
 
                 let raw = if got > 0 {
-                    analyze(&ring, sample_rate)
+                    analyze(&ring, sample_rate, &window, &mut re, &mut im)
                 } else {
                     [0f32; BANDS]
                 };
@@ -197,10 +225,47 @@ mod win {
                     };
                 }
 
-                if app.emit("viz:levels", smooth.to_vec()).is_err() {
-                    break;
+                // Treat a fully-decayed spectrum as silence.
+                let quiet = smooth.iter().all(|&v| v <= 0.001);
+                if quiet {
+                    quiet_frames = quiet_frames.saturating_add(1);
+                } else {
+                    quiet_frames = 0;
+                    sent_zero = false;
                 }
-                std::thread::sleep(std::time::Duration::from_millis(22));
+
+                // Once silent for ~0.6s, emit a single zero frame and then go
+                // idle: skip the emit and sleep long so the FFT/IPC stop
+                // burning CPU until sound returns.
+                let idle = quiet_frames > 30;
+                // Delta-gate: skip the frame entirely unless a band changed
+                // visibly (~1px on a 16px bar). Sustained tones barely move the
+                // bars, so most frames are skipped and the island stays as quiet
+                // as when paused; transients still come through instantly.
+                let moved = smooth
+                    .iter()
+                    .zip(last_sent.iter())
+                    .any(|(a, b)| (a - b).abs() > 0.045);
+
+                let emit = if idle { !sent_zero } else { moved };
+                if emit {
+                    if app.emit_to(VIZ_TARGET, "viz:levels", smooth.to_vec()).is_err() {
+                        break;
+                    }
+                    last_sent = smooth;
+                    if idle {
+                        sent_zero = true;
+                    }
+                }
+
+                // Poll the FFT at ~18fps while active (the delta-gate drops most
+                // of these before they ever reach the UI); back off hard on
+                // silence. The sleep is the FFT/analysis cadence, not the UI rate.
+                std::thread::sleep(std::time::Duration::from_millis(if idle {
+                    200
+                } else {
+                    55
+                }));
             }
             let _ = client.Stop();
             Ok(())

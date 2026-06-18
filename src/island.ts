@@ -39,8 +39,70 @@ const sourceIc = $("source-ic");
 const fill = $("progress-fill");
 const knob = $("progress-knob");
 const seekEl = $("seek");
-const eqEl = $("eq");
-const eqBars = Array.from(eqEl.querySelectorAll("span")) as HTMLElement[];
+// ---- Equalizer (canvas) --------------------------------------------------
+// One canvas, one compositor layer. The backend streams band levels as targets;
+// a rAF loop eases the bars toward them and STOPS as soon as they settle, so a
+// steady passage animates nothing and the island idles at its paused cost.
+const eqCanvas = $<HTMLCanvasElement>("eq");
+const eqCtx = eqCanvas.getContext("2d", { alpha: true });
+const EQ_BANDS = 5;
+const EQ_W = 34, EQ_H = 16, EQ_BW = 4, EQ_GAP = 3.5;
+let eqDpr = 1;
+function setupEqCanvas() {
+  eqDpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+  eqCanvas.width = Math.round(EQ_W * eqDpr);
+  eqCanvas.height = Math.round(EQ_H * eqDpr);
+  eqCanvas.style.width = EQ_W + "px";
+  eqCanvas.style.height = EQ_H + "px";
+}
+setupEqCanvas();
+
+const eqTarget = new Array(EQ_BANDS).fill(0);
+const eqCur = new Array(EQ_BANDS).fill(0);
+let eqRaf = 0;
+let eqAccent = "#e0e0ec"; // kept in sync by setAccent()
+
+function eqRoundRect(c: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  c.beginPath();
+  c.moveTo(x + r, y);
+  c.arcTo(x + w, y, x + w, y + h, r);
+  c.arcTo(x + w, y + h, x, y + h, r);
+  c.arcTo(x, y + h, x, y, r);
+  c.arcTo(x, y, x + w, y, r);
+  c.closePath();
+}
+
+function drawEq() {
+  if (!eqCtx) { eqRaf = 0; return; }
+  let moving = false;
+  for (let i = 0; i < EQ_BANDS; i++) {
+    const d = eqTarget[i] - eqCur[i];
+    eqCur[i] += d * 0.35;
+    if (Math.abs(d) > 0.003) moving = true;
+  }
+  const dpr = eqDpr;
+  eqCtx.clearRect(0, 0, eqCanvas.width, eqCanvas.height);
+  eqCtx.fillStyle = eqAccent;
+  eqCtx.shadowColor = eqAccent;
+  eqCtx.shadowBlur = 4 * dpr;
+  for (let i = 0; i < EQ_BANDS; i++) {
+    const v = Math.max(0, Math.min(1, eqCur[i]));
+    const h = (3 + v * (EQ_H - 3)) * dpr;
+    const w = EQ_BW * dpr;
+    const x = i * (EQ_BW + EQ_GAP) * dpr;
+    const y = EQ_H * dpr - h;
+    eqCtx.globalAlpha = 0.45 + v * 0.55;
+    eqRoundRect(eqCtx, x, y, w, h, Math.min(w / 2, h / 2, 3 * dpr));
+    eqCtx.fill();
+  }
+  eqCtx.globalAlpha = 1;
+  // Keep animating only while the bars are actually in motion and visible.
+  eqRaf = moving && playing && !document.hidden ? requestAnimationFrame(drawEq) : 0;
+}
+/** Wake the eq loop after new targets arrive (no-op if already running/idle). */
+function kickEq() {
+  if (eqRaf === 0 && playing && !document.hidden) eqRaf = requestAnimationFrame(drawEq);
+}
 
 // ---- Tight window sizing -------------------------------------------------
 // Measure the real pill (plus any open popup) and ask Rust to size the window
@@ -107,18 +169,42 @@ function currentPos(): number {
   if (playing && !seeking) pos += (performance.now() - lastStamp) / 1000;
   return Math.min(pos, lastDur || pos);
 }
-function tick() {
-  if (lastDur > 0) {
-    const pct = Math.min(100, Math.max(0, (currentPos() / lastDur) * 100));
-    fill.style.width = pct + "%";
-    knob.style.left = pct + "%";
-  } else {
-    fill.style.width = "0%";
-    knob.style.left = "0%";
-  }
-  requestAnimationFrame(tick);
+let progTimer = 0;
+let lastPct = -1;
+function paintProgress() {
+  let pct = 0;
+  if (lastDur > 0) pct = Math.min(100, Math.max(0, (currentPos() / lastDur) * 100));
+  // The fill/knob carry CSS transitions, so sub-pixel updates are wasted work.
+  // Only touch the DOM when the bar actually moves a visible amount.
+  if (Math.abs(pct - lastPct) < 0.05) return;
+  lastPct = pct;
+  fill.style.width = pct + "%";
+  knob.style.left = pct + "%";
 }
-requestAnimationFrame(tick);
+function stopTicking() {
+  if (progTimer) { clearInterval(progTimer); progTimer = 0; }
+}
+/** Drive the progress bar on a slow timer while playing; CSS transitions smooth
+ *  the steps. No per-frame rAF — at rest the island does essentially no work.
+ *  Stops itself when paused, idle, done seeking, or the window is hidden. */
+function ensureTicking() {
+  if (progTimer || !playing || document.hidden || lastDur <= 0) return;
+  paintProgress();
+  progTimer = window.setInterval(() => {
+    if (!playing || document.hidden || lastDur <= 0) { stopTicking(); return; }
+    paintProgress();
+  }, 250);
+}
+// Pause the timer when the island is hidden (Win+D, another desktop, etc.).
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    stopTicking();
+  } else {
+    paintProgress();
+    ensureTicking();
+    kickEq();
+  }
+});
 
 /** Vivid accent from album art. */
 function accentFromImage(src: string): Promise<string | null> {
@@ -177,6 +263,7 @@ function accentFromImage(src: string): Promise<string | null> {
 let lastReported = "";
 function setAccent(color: string) {
   document.documentElement.style.setProperty("--accent", color);
+  eqAccent = color;
   // Mirror to the other windows for their glow (debounced by equality).
   if (color !== lastReported) {
     lastReported = color;
@@ -244,6 +331,10 @@ async function render(ev: MediaEvent) {
     lastDur = m.duration;
     lastStamp = performance.now();
   }
+  // Paint the bar once for this update, and run the rAF loop only while
+  // actually playing (it self-stops on pause via tick()).
+  paintProgress();
+  if (playing && !document.hidden) ensureTicking();
 
   if (ev.thumb !== null) {
     if (ev.thumb === "") {
@@ -309,11 +400,13 @@ seekEl.addEventListener("pointerdown", (e) => {
   seekEl.setPointerCapture(e.pointerId);
   lastPos = ratioFromEvent(e) * lastDur;
   lastStamp = performance.now();
+  paintProgress();
 });
 seekEl.addEventListener("pointermove", (e) => {
   if (!seeking) return;
   lastPos = ratioFromEvent(e) * lastDur;
   lastStamp = performance.now();
+  paintProgress();
 });
 seekEl.addEventListener("pointerup", (e) => {
   if (!seeking) return;
@@ -321,6 +414,8 @@ seekEl.addEventListener("pointerup", (e) => {
   const target = ratioFromEvent(e) * lastDur;
   lastPos = target;
   lastStamp = performance.now();
+  paintProgress();
+  if (playing && !document.hidden) ensureTicking();
   invoke("media_seek", { position: target });
 });
 
@@ -331,13 +426,11 @@ listen<any>("config:update", (e) => applyTheme(e.payload));
 // Real-time spectrum from the backend (WASAPI loopback → FFT). Each bar's
 // height tracks its frequency band; CSS smooths between the ~45fps packets.
 listen<number[]>("viz:levels", (e) => {
+  // The equalizer only shows while playing; ignore packets otherwise.
+  if (document.hidden || !playing) return;
   const lv = e.payload;
-  if (!eqEl.classList.contains("live")) eqEl.classList.add("live");
-  for (let i = 0; i < eqBars.length; i++) {
-    const v = Math.max(0, Math.min(1, lv[i] ?? 0));
-    eqBars[i].style.height = (4 + v * 12).toFixed(1) + "px";
-    eqBars[i].style.opacity = (0.45 + v * 0.55).toFixed(2);
-  }
+  for (let i = 0; i < EQ_BANDS; i++) eqTarget[i] = Math.max(0, Math.min(1, lv[i] ?? 0));
+  kickEq();
 });
 
 $("toggle").addEventListener("click", (e) => { e.stopPropagation(); invoke("media_toggle"); });

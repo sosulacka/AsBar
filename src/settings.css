@@ -49,8 +49,8 @@ body {
       transparent 68%),
     var(--bg);
   background-blend-mode: screen, normal;
-  backdrop-filter: blur(40px) saturate(160%);
-  -webkit-backdrop-filter: blur(40px) saturate(160%);
+  /* No desktop backdrop-filter — see island.css. The panel background is solid,
+     so blurring the wallpaper behind it only burns the GPU for no visible gain. */
   border: 1px solid var(--line-strong);
   border-radius: 4px 4px 20px 20px;
   transition: background 0.5s ease;
